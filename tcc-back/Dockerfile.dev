@@ -1,0 +1,19 @@
+###################
+# BUILD FOR LOCAL DEVELOPMENT
+###################
+
+FROM node:16 as development
+
+WORKDIR /usr/src/app
+
+COPY --chown=node:node package.json yarn.lock ./
+
+RUN yarn install --pure-lockfile
+
+RUN yarn prisma:generate
+
+COPY --chown=node:node . .
+
+USER node
+
+CMD [ "yarn", "start:dev" ]

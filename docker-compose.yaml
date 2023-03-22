@@ -1,0 +1,61 @@
+version: "3.6"
+
+services:
+  tcc-db:
+    image: postgres:12-alpine
+    profiles:
+      - back
+    container_name: tcc-db
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      POSTGRES_MULTIPLE_DATABASES: > 
+        tcc, supertokens
+    expose:
+    - "5433"
+    volumes:
+      - ./scripts:/docker-entrypoint-initdb.d
+      - tcc-postgres:/var/lib/postgresql/data
+    ports:
+      - 5433:5433
+    command: -p 5433
+  
+  tcc-back:
+    container_name: tcc-back
+    profiles:
+      - back
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./tcc-back
+      target: development
+    ports:
+      - 3000:3000
+    depends_on:
+      - tcc-supertokens
+    volumes:
+      - ./tcc-back:/usr/src/app
+    command: >
+      sh -c "
+        yarn prisma:generate
+        yarn prisma:migrate:dev
+        yarn prisma:seed
+        yarn start:dev
+      "
+    environment:
+      DATABASE_URL: postgresql://${DATABASE_USERNAME:-postgres}:${DATABASE_PASSWORD:-postgres}@tcc-db:5433/tcc?schema=public
+      SUPERTOKEN_API_DOMAIN: ${SUPERTOKEN_API_DOMAIN:-http://localhost:3000}
+      SUPERTOKEN_WEB_DOMAIN: ${SUPERTOKEN_WEB_DOMAIN:-http://localhost:8084}
+      SUPERTOKEN_HOST: http://tcc-supertokens:3567
+
+  tcc-supertokens:
+    profiles:
+      - back
+    image: registry.supertokens.io/supertokens/supertokens-postgresql
+    container_name: tcc-supertokens
+    depends_on:
+      - tcc-db
+    environment:
+      POSTGRESQL_CONNECTION_URI: postgresql://${DATABASE_USERNAME:-postgres}:${DATABASE_PASSWORD:-postgres}@tcc-db:5433/supertokens?schema=public
+
+volumes:
+  tcc-postgres:
